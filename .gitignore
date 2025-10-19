@@ -1,0 +1,4 @@
+# This adds the necessary file paths to your .gitignore file
+echo "backend/token.json" >> .gitignore
+echo "backend/services/token.json" >> .gitignore
+echo "backend/credentials.json" >> .gitignore

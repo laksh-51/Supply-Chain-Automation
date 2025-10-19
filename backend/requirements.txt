@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+psycopg2-binary # For PostgreSQL connectivity
+passlib[bcrypt] # Secure password hashing
+python-dotenv
+pydantic-settings # For managing environment variables
+python-jose
+cryptography
