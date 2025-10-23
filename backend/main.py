@@ -3,9 +3,11 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from passlib.context import CryptContext
-from typing import Annotated
+from typing import Annotated, List
+from models.sales_data_model import SalesData # Need to import the SalesData model
 from sqlmodel import SQLModel
-
+from datetime import datetime # ADDED: Need this for timestamp updatesfrom datetime import datetime # ADDED: Need this for timestamp updates
+from apscheduler.schedulers.asyncio import AsyncIOScheduler # <<< NEW IMPORT
 import os
 from dotenv import load_dotenv
 
@@ -23,7 +25,10 @@ from models.log_model import WorkflowLog
 from analytics.kpi_calculator import get_all_kpis 
 from analytics.anomaly_detector import detect_anomalies
 from services.llm_translator import generate_insight_summary, translate_natural_language_to_sql
-
+# Import the Workflow model
+from models.workflow import Workflow # ADDED
+# Import the new router
+from routers import workflows # ADDED: Assuming an empty __init__.py exists in routers/
 # Imports needed for SQL translation metadata
 from models.sales_data_model import SalesData 
 from sqlmodel import inspect
@@ -33,17 +38,18 @@ from jose import jwt, JWTError
 
 
 # The split(',') creates a list of strings: ["http://localhost:5173", "http://127.0.0.1:5173"]
-origins = os.getenv("FRONTEND_URLS").split(',')
+origins_str = os.getenv("FRONTEND_URLS", "http://localhost:5173").split(',')
+# origins = [origin.strip() for origin in origins_str]
+origins = ["*"] # <<< CHANGE THIS LINE
 print(f"DEBUG: CORS Allowed Origins: {origins}") 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # This is the critical line that allows 5173 to access 8000
+    allow_origins=origins, # This should now definitively contain http://localhost:5173
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # --- Startup Event ---
 @app.on_event("startup")
 def on_startup():
@@ -51,6 +57,8 @@ def on_startup():
     create_db_and_tables()
 
 # --- Authentication Routes ---
+app.include_router(workflows.router) # ADD THIS LINE to register the new router
+
 
 @app.post("/api/v1/register", response_model=User)
 def register_user(user_data: UserCreate, session: Session = Depends(get_session)):
@@ -95,61 +103,194 @@ def login_for_access_token(user_data: UserLogin, session: Session = Depends(get_
     return {"access_token": access_token, "token_type": "bearer"}
 
 # backend/main.py (Update the function definition and body)
+# --- NEW SCHEDULER SETUP ---
+scheduler = AsyncIOScheduler()
+# ---------------------------
 
-@app.post("/api/v1/trigger-workflow/")
+# NEW FUNCTION: The core scheduled task
+def scheduled_workflow_check():
+    """Checks all active workflows and triggers ETL if a new email is detected."""
+    with next(get_session()) as session:
+        # 1. Select all active workflows
+        active_workflows = session.exec(select(Workflow).where(Workflow.is_active == True)).all()
+        
+        for workflow in active_workflows:
+            print(f"SCHEDULER: Checking workflow ID {workflow.id}: {workflow.name}")
+            
+            # --- Build Search Query ---
+            search_query = f"subject:{workflow.trigger_subject}"
+            if workflow.trigger_sender:
+                search_query += f" from:{workflow.trigger_sender}"
+            
+            # --- Find New Attachment ---
+            # NOTE: We now expect 3 return values
+            raw_data, file_name, message_id = find_and_download_attachment(search_query=search_query)
+
+            if raw_data is None or message_id is None:
+                # Log INFO if no new email found, but don't halt the scheduler
+                new_log = WorkflowLog(
+                    merchant_id=workflow.user_id, 
+                    status="INFO",
+                    workflow_id=workflow.id,
+                    message=f"No email found matching '{search_query}'. Skipping."
+                )
+                session.add(new_log)
+                session.commit() # Commit the INFO log immediately
+                continue # Skip to next workflow
+
+            # --- IDEMPOTENCY CHECK ---
+            if workflow.last_processed_email_id == message_id:
+                print(f"SCHEDULER: Workflow {workflow.id} skipped. Email already processed.")
+                continue # Skip to next workflow
+            
+            # --- ETL Logic (Same as manual trigger) ---
+            df = process_attachment_data(raw_data, file_name)
+            if df is None or df.empty:
+                 # Log FAILURE and continue
+                 print(f"SCHEDULER: ERROR - Data processing failed for workflow {workflow.id}.")
+                 continue
+                 
+            rows_inserted = ingest_data_frame(df, session) 
+            
+            # --- Update Log and Workflow Status/ID ---
+            new_log = WorkflowLog(
+                merchant_id=workflow.user_id, 
+                status="SUCCESS",
+                workflow_id=workflow.id,
+                source_filename=file_name,
+                rows_inserted=rows_inserted,
+                message=f"Ingestion successful. Processed {df.shape[0]} rows."
+            )
+            session.add(new_log)
+            
+            # UPDATE WORKFLOW STATE
+            workflow.last_run_status = "AUTO-SUCCESS"
+            workflow.last_run_timestamp = datetime.utcnow()
+            workflow.last_processed_email_id = message_id # <<< CRUCIAL IDEMPOTENCY UPDATE
+            session.add(workflow)
+            session.commit()
+            print(f"SCHEDULER: Workflow {workflow.id} SUCCESS: {rows_inserted} rows inserted.")
+            
+@app.on_event("startup")
+def on_startup():
+    """Creates database tables and starts the scheduler."""
+    create_db_and_tables()
+    
+    # Start scheduler here
+    scheduler.add_job(scheduled_workflow_check, 'interval', minutes=1) # Run every minute for testing
+    scheduler.start()
+    print("SCHEDULER: Started, checking for workflows every 1 minute.")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    """Stops the scheduler when the application shuts down."""
+    if scheduler.running:
+        scheduler.shutdown()
+        print("SCHEDULER: Shutdown complete.")
+                  
+@app.post("/api/v1/trigger-workflow/{workflow_id}") # MODIFIED PATH
 async def trigger_data_ingestion(
-    current_user: str = Depends(get_current_active_user), # Use current_user for authorization
-    session: Session = Depends(get_session) # <-- NEW: Add DB Session Dependency
+    workflow_id: int, # ADDED
+    current_user: User = Depends(get_current_active_user), 
+    session: Session = Depends(get_session) 
 ):
     """
-    Triggers the ETL pipeline: Checks Gmail, downloads attachment, extracts, and loads data.
+    Triggers the ETL pipeline using the specified workflow configuration.
     """
+    # 1. Fetch and Validate Workflow (Ensure user owns it)
+    workflow = session.exec(
+        select(Workflow).where(
+            (Workflow.id == workflow_id) & (Workflow.user_id == current_user.id)
+        )
+    ).first()
+    if not workflow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Workflow not found or access denied."
+        )
 
-    search_query = f"subject:{os.getenv('EMAIL_TRIGGER_KEYWORD')}"
-    raw_data, file_name = find_and_download_attachment(search_query=search_query)
+    # 2. Use workflow filters for Gmail search
+    search_query = f"subject:{workflow.trigger_subject}"
+    if workflow.trigger_sender:
+        search_query += f" from:{workflow.trigger_sender}"
+        
+    #
+    raw_data, file_name, _ = find_and_download_attachment(search_query=search_query) # <<< FIXED UNPACKING
 
     if raw_data is None:
-        # Check if token.json is missing, which would cause the error flow below
-        if not os.path.exists(TOKEN_FILE_PATH):
-             # This is a safe guard, but shouldn't be hit now that token.json exists.
-             # If you want to check for token.json path again, you need to import it
-             pass 
+        # Check for service failure (same logic as before)
+        if not os.path.exists(TOKEN_FILE_PATH): 
+             raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Gmail Service failed to authenticate. Run Gmail Monitor script manually or check 'credentials.json' existence and path."
+            )
+             
+        # Log INFO to History Model (No email found)
+        new_log = WorkflowLog(
+            merchant_id=current_user.id, 
+            status="INFO",
+            workflow_id=workflow.id, # Link log to workflow
+            message=f"No email found matching '{search_query}'. Skipping ingestion."
+        )
+        session.add(new_log)
+        # Update workflow status
+        workflow.last_run_status = "INFO: No Email"
+        workflow.last_run_timestamp = datetime.utcnow() #
+        session.add(workflow)
+        session.commit()
+        return {"status": "info", "message": f"Workflow '{workflow.name}' skipped. No new email."}
 
-        return {"status": "info", "message": "No new email found matching the trigger criteria. Skipping ingestion."}
-
-    # 1. Process/Extract Data into DataFrame
+    # 3. Process/Extract Data into DataFrame
     df = process_attachment_data(raw_data, file_name)
 
-    if df is None or df.empty:
+    if df is None or df.empty: #
+        # Handle logging for failure if needed...
         raise HTTPException(status_code=400, detail="Data processing failed or attachment was empty.")
+        raise HTTPException(status_code=501, detail="Manual trigger disabled. Use scheduler or implement full idempotency logic here.")
 
-    # 2. Ingestion (Load)
-    rows_inserted = ingest_data_frame(df, session) # Pass DataFrame and session
+    # 4. Ingestion (Load)
+    rows_inserted = ingest_data_frame(df, session) 
 
+    # 5. Log Success to History and Update Workflow Status
     new_log = WorkflowLog(
-    merchant_id=current_user.id, # Use the actual user ID from the token
-    status="SUCCESS",
-    source_filename=file_name,
-    rows_inserted=rows_inserted,
-    message=f"Ingestion successful. Processed {df.shape[0]} rows."
+        merchant_id=current_user.id, 
+        status="SUCCESS",
+        workflow_id=workflow.id, # Link log to workflow
+        source_filename=file_name,
+        rows_inserted=rows_inserted,
+        message=f"Ingestion successful. Processed {df.shape[0]} rows."
     )
     session.add(new_log)
-    session.commit()
+    
+    # Update workflow status
+    workflow.last_run_status = "SUCCESS"
+    workflow.last_run_timestamp = datetime.utcnow()
+    session.add(workflow) 
+    session.commit() # Commit all changes (log and workflow update)
 
-    # 4. Return summary
-    return {
-    "status": "success",
-    "message": f"Workflow executed. Data from {file_name} loaded.",
-    "rows_processed": df.shape[0],
-    "rows_inserted": rows_inserted
-}
-    # 3. Return summary
+    # 6. Return summary
     return {
         "status": "success",
-        "message": f"Workflow executed. Data from {file_name} loaded.",
+        "message": f"Workflow '{workflow.name}' executed. Data from {file_name} loaded.",
         "rows_processed": df.shape[0],
         "rows_inserted": rows_inserted
     }
+
+# NEW ENDPOINT: Get History for the current user
+@app.get("/api/v1/history", response_model=List[WorkflowLog])
+def get_user_history(
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+):
+    """Retrieves the last 5 relevant activity logs for the current user."""
+    logs = session.exec(
+        select(WorkflowLog)
+        .where(WorkflowLog.merchant_id == current_user.id)
+        .order_by(WorkflowLog.timestamp.desc())
+        .limit(5)
+    ).all()
+    
+    return logs
 # backend/main.py (Add the new route below trigger_data_ingestion)
 
 @app.get("/api/v1/insights")
@@ -256,6 +397,18 @@ def get_query_data(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database execution failed: {e}")
+
+@app.get("/api/v1/data/raw", response_model=List[SalesData])
+def get_raw_sales_data(
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+):
+    """Retrieves all sales data currently in the database."""
+    # NOTE: This currently returns data for ALL users, based on SalesData model.
+    # For true multi-tenancy, you would add .where(SalesData.merchant_id == current_user.id)
+    data = session.exec(select(SalesData)).all()
+    return data
+
     
 @app.get("/")
 def read_root():

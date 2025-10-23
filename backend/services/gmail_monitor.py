@@ -59,7 +59,7 @@ def get_gmail_service():
                 print(f"\nFATAL ERROR: Credentials file '{CREDENTIALS_FILENAME}' not found.")
                 print(f"Please ensure it is located at: {CREDENTIALS_FILE_PATH}")
                 # Exiting cleanly to prevent the 500 error propagation
-                sys.exit(1)
+                return None
 
             # Set the redirect URI for console apps
             flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
@@ -134,14 +134,14 @@ def find_and_download_attachment(user_id='me', search_query=''):
         file_data = urlsafe_b64decode(att_data['data'])
         
         print(f"SUCCESS: Found and downloaded attachment: {file_name}")
-        return file_data, file_name 
+        return file_data, file_name, message_id
             
     except HttpError as error:
         print(f"An HTTP error occurred during message retrieval: {error}")
-        return None, None
+        return None, None, None
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
-        return None, None
+        return None, None, None
 
 
 if __name__ == '__main__':
