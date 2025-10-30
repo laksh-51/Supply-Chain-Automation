@@ -1,6 +1,7 @@
 # backend/services/ingestion.py
 import pandas as pd
 from sqlmodel import Session, select, SQLModel
+from database import get_session # Dependency to get a DB session
 
 # Import the model for the table we are targeting
 from models.sales_data_model import SalesData 

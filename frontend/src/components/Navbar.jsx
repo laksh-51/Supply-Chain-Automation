@@ -1,4 +1,4 @@
-// frontend/src/components/Navbar.jsx (NEW FILE)
+// frontend/src/components/Navbar.jsx (MODIFIED with Tailwind)
 import React from 'react';
 import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
@@ -6,31 +6,31 @@ import { useLocation } from 'react-router-dom';
 const Navbar = ({ toggleSidebar }) => {
     const location = useLocation();
     
-    // Hide navbar on public routes
     if (location.pathname === '/' || location.pathname === '/register') {
         return null;
     }
 
-    // Placeholder for user initial (replace with actual logic if user info is stored)
-    const userInitial = 'L'; 
+    // Empty initial as requested
+    const userInitial = ''; 
 
     return (
         <header 
-            style={{ height: '64px', padding: '0 24px', backgroundColor: '#FFFFFF' }}
-            className="flex items-center justify-between border-b shadow-sm z-20"
+            className="h-16 flex items-center justify-between px-6 shadow-md z-20 
+                       bg-v-bg-secondary border-b border-v-bg-card"
         >
-            {/* Left Corner: Sidebar Toggle Symbol */}
+            {/* Left Corner: Sidebar Toggle Symbol (Hamburger) */}
             <button 
                 onClick={toggleSidebar} 
-                className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-md hover:bg-v-bg-card transition-colors"
                 title="Toggle Menu"
             >
-                <Menu className="w-6 h-6 text-gray-600" />
+                <Menu className="w-6 h-6 text-v-accent-high" />
             </button>
 
             {/* Right Corner: Account Initial in a Circle */}
             <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-semibold shadow-md 
+                            bg-v-accent-high text-v-bg-secondary"> 
                     {userInitial}
                 </div>
             </div>

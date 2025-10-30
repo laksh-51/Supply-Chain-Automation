@@ -1,73 +1,87 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+// frontend/src/pages/Auth/Login.jsx (REDESIGN & ALIGNMENT FIX)
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate, Link } from "react-router-dom";
 
-const API_BASE_URL = "http://localhost:8000/api/v1"; 
+const API_BASE_URL = "http://localhost:8000/api/v1";
 
 function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
-      // Axios sends the form data (FastAPI expects x-www-form-urlencoded, but Pydantic can handle JSON body too)
-      // For this simple example, we'll send JSON body
       const response = await axios.post(`${API_BASE_URL}/login`, {
-        email: email,
-        password: password,
+        email,
+        password,
       });
-
-      // On successful login, store the token
-      localStorage.setItem('accessToken', response.data.access_token);
-      
-      // Redirect to the protected dashboard
-      navigate('/dashboard');
-
+      localStorage.setItem("accessToken", response.data.access_token);
+      navigate("/dashboard");
     } catch (err) {
-      // Handle 401 Unauthorized or other errors
-      const message = err.response?.data?.detail || "Login failed. Check server status and credentials.";
+      const message =
+        err.response?.data?.detail ||
+        "Login failed. Check server status and credentials.";
       setError(message);
-      console.error("Login Error:", err);
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <h2>Merchant Login</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <form onSubmit={handleLogin}>
-        <div style={{ marginBottom: '15px' }}>
-          <label>Email:</label>
-          <input 
-            type="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <label>Password:</label>
-          <input 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-            style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
-          />
-        </div>
-        <button type="submit" style={{ padding: '10px 15px', backgroundColor: 'blue', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-          Login
-        </button>
-      </form>
-      <p style={{ marginTop: '20px' }}>
-        Don't have an account? <Link to="/register">Register here</Link>
-      </p>
+    <div className="flex justify-center items-center min-h-screen p-6">
+      {/* FIX: max-w-md sets the card width, bg-v-bg-card sets the color */}
+      <div className="w-full max-w-md p-8 rounded-xl shadow-2xl bg-v-bg-card text-v-text border border-v-accent/50">
+        <h2 className="text-3xl font-extrabold mb-8 text-center text-v-accent">
+          MERCHANT LOGIN
+        </h2>
+
+        {error && <p className="text-red-400 mb-4 text-center">{error}</p>}
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium mb-1 text-v-text-muted">
+              Email:
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              // New input styling: dark background, accent focus ring
+              className="w-full p-3 rounded-lg border border-v-bg-dark bg-v-bg-mid text-v-text focus:ring-2 focus:ring-v-accent focus:border-v-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1 text-v-text-muted">
+              Password:
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full p-3 rounded-lg border border-v-bg-dark bg-v-bg-mid text-v-text focus:ring-2 focus:ring-v-accent focus:border-v-accent"
+            />
+          </div>
+
+          <button
+  type="submit"
+  className="w-full py-3 rounded-lg bg-v-action text-white font-semibold hover:bg-v-accent focus:outline-none focus:ring-4 focus:ring-v-accent/40 transition-all duration-200 shadow-md"
+>
+  Login
+</button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-v-text-muted">
+          Don't have an account?
+          <Link to="/register" className="ml-1 text-v-accent hover:underline">
+            Register here
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

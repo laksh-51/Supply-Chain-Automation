@@ -1,60 +1,80 @@
-// frontend/src/pages/Dashboard/Workflows.jsx (CLEAN VERSION)
+// frontend/src/pages/Dashboard/Workflows.jsx (COMPLETE, FINAL VERSION)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Zap, Database } from 'lucide-react';
+import { Plus, Trash2, Zap, Database, Clock } from 'lucide-react';
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
+// --- WorkflowItem Component ---
 const WorkflowItem = ({ workflow, onEdit, onDelete, onTrigger }) => {
-    // Helper to format date nicely
     const formatTimestamp = (ts) => ts ? new Date(ts).toLocaleString() : 'Never Run';
     const lastRunText = `${formatTimestamp(workflow.last_run_timestamp)} (${workflow.last_run_status || 'NEW'})`;
     
-    return (
-        <div className="flex justify-between items-center p-4 mb-2 bg-white rounded-lg shadow-md border-l-4 border-indigo-500">
-            <div>
-                <h3 className="text-lg font-semibold">{workflow.name}</h3>
-                <p className="text-sm text-gray-600">Trigger: Subject starts with "{workflow.trigger_subject}"</p>
-                <p className="text-xs text-gray-500 mt-1">Last Run: {lastRunText}</p>
+   return (
+        <div 
+            // Corrected hover: shadow change and subtle background shift
+            className="flex justify-between items-center p-5 mb-4 rounded-xl shadow-lg border-l-4 
+                    bg-v-bg-card border-v-accent 
+                    transition-all duration-300 hover:shadow-2xl hover:bg-v-bg-mid" /* <<< KEY FIX */
+        >
+            <div className="flex-1">
+                <h3 className="text-xl font-bold text-v-text">{workflow.name}</h3>
+                <p className="text-sm text-v-accent mt-1">
+                    <Clock className="w-4 h-4 inline mr-1" /> 
+                    Interval: {workflow.recheck_interval_minutes} Minutes
+                </p>
+                <p className="text-xs text-v-text-muted mt-2">
+                    Last Run: {lastRunText}
+                </p>
             </div>
-            <div className="flex space-x-2">
+            
+            <div className="flex space-x-3 items-center">
                 <button 
                     onClick={() => onEdit(workflow)} 
-                    className="p-2 text-indigo-500 hover:text-indigo-700" 
+                    className="p-3 text-v-text hover:text-v-accent transition duration-200 rounded-lg bg-v-bg-mid shadow-md" 
                     title="View Insights/Data"
                 >
-                    <Database size={18} />
+                    <Database size={20} />
                 </button>
                 <button 
                     onClick={() => onTrigger(workflow.id)} 
-                    className="p-2 text-white bg-green-500 rounded-full hover:bg-green-600" 
+                    className="p-3 text-white bg-v-action rounded-full hover:bg-v-accent transition duration-200 shadow-md" 
                     title="Run Now"
                 >
-                    <Zap size={18} />
+                    <Zap size={20} />
                 </button>
                 <button 
                     onClick={() => onDelete(workflow.id)} 
-                    className="p-2 text-red-500 hover:text-red-700" 
+                    className="p-3 text-v-text-muted hover:text-red-400 transition duration-200 bg-transparent" 
                     title="Delete"
                 >
-                    <Trash2 size={18} />
+                    <Trash2 size={20} />
                 </button>
             </div>
         </div>
     );
 };
 
-function Workflows(){
+// --- Main Workflows Component ---
+function Workflows() {
     const [workflows, setWorkflows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [formState, setFormState] = useState({ name: '', trigger_subject: 'Daily Sales Report', trigger_sender: '' });
-    const [rawDump, setRawDump] = useState(null); // NEW: State for raw data table
+    const [rawDump, setRawDump] = useState(null); 
+    
+    // State for Custom Interval Input (Point 1.1)
+    const [formState, setFormState] = useState({ 
+        name: '', 
+        trigger_subject: 'Daily Sales Report', 
+        trigger_sender: '',
+        recheck_interval_value: 5,
+        recheck_interval_unit: 'min' 
+    });
+    
     const navigate = useNavigate();
-    // Token is now retrieved inside functions (Step 2 of previous fix)
-
+    
     useEffect(() => {
         fetchWorkflows();
     }, []);
@@ -78,20 +98,6 @@ function Workflows(){
         }
     };
     
-    const handleViewData = async () => {
-        const token = localStorage.getItem('accessToken');
-        if (!token) return; 
-
-        try {
-            const response = await axios.get(`${API_BASE_URL}/data/raw`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setRawDump(response.data);
-        } catch (err) {
-            alert('Failed to fetch raw data: ' + (err.response?.data?.detail || 'Server error'));
-        }
-    };
-
     const handleFormChange = (e) => {
         setFormState({ ...formState, [e.target.name]: e.target.value });
     };
@@ -103,15 +109,34 @@ function Workflows(){
              alert('Save failed: Authentication token missing. Please log in.');
              return;
         }
+        
+        // 1. Calculate total minutes for backend
+        const minutes = formState.recheck_interval_unit === 'hr' 
+            ? formState.recheck_interval_value * 60 
+            : formState.recheck_interval_value;
+            
+        const payload = {
+            name: formState.name,
+            trigger_subject: formState.trigger_subject,
+            trigger_sender: formState.trigger_sender,
+            recheck_interval_minutes: minutes, // Send calculated minutes
+        };
+
         try {
-            await axios.post(`${API_BASE_URL}/workflows`, formState, {
+            await axios.post(`${API_BASE_URL}/workflows`, payload, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             fetchWorkflows(); 
             setIsFormOpen(false); 
-            setFormState({ name: '', trigger_subject: 'Daily Sales Report', trigger_sender: '' });
+            // Reset form state to defaults after success
+            setFormState({ 
+                name: '', 
+                trigger_subject: 'Daily Sales Report', 
+                trigger_sender: '',
+                recheck_interval_value: 5,
+                recheck_interval_unit: 'min'
+            });
         } catch (err) {
-            // Updated error handling to show detailed message
             let errorMessage = err.response?.data?.detail || 'Server error occurred. Check console.';
             if (Array.isArray(errorMessage)) {
                 errorMessage = JSON.stringify(errorMessage);
@@ -142,8 +167,24 @@ function Workflows(){
         }
     };
     
+    // Handles View Data for a specific workflow (Point 2)
+    const handleViewData = async (workflowId) => {
+        const token = localStorage.getItem('accessToken');
+        if (!token) return; 
+
+        try {
+            // CRITICAL: Call the multi-tenancy endpoint with the specific workflow ID
+            const response = await axios.get(`${API_BASE_URL}/data/raw/${workflowId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setRawDump(response.data);
+        } catch (err) {
+            alert('Failed to fetch raw data: ' + (err.response?.data?.detail || 'Server error'));
+        }
+    };
+    
+    // Handles navigation to Insights (which will fetch data based on workflow ID)
     const handleEdit = (workflow) => {
-        // This fulfills the "see the database in table format, and get insights" requirement.
         navigate(`/insights?workflowId=${workflow.id}`);
     };
     
@@ -164,17 +205,16 @@ function Workflows(){
         }
     };
 
-    // If loading is true, this should show up. If it is NOT showing up, 
-    // the code broke before reaching this return statement.
-    if (loading) return <div className="text-center text-indigo-500">Loading workflows...</div>;
+    // --- Conditional Return (must be inside function) ---
+    if (loading) return <div className="text-center text-v-accent-high mt-10">Loading workflows...</div>;
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">My Workflows ({workflows.length})</h1>
+        <div className="p-8 min-h-screen"> 
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-4xl font-bold text-v-text-light">My Workflows ({workflows.length})</h1>
                 <button 
                     onClick={() => setIsFormOpen(!isFormOpen)}
-                    className="flex items-center px-4 py-2 text-white bg-indigo-500 rounded-lg hover:bg-indigo-600"
+                    className="flex items-center px-4 py-2 rounded-lg bg-v-accent-mid hover:bg-v-accent-high text-v-bg-primary font-bold transition duration-200"
                 >
                     <Plus size={20} className="mr-2" />
                     Create New Workflow
@@ -182,9 +222,11 @@ function Workflows(){
             </div>
 
             {isFormOpen && (
-                <div className="p-4 mb-6 bg-gray-100 rounded-lg shadow-inner">
-                    <h2 className="text-xl font-semibold mb-3">Workflow Configuration</h2>
+                <div className="p-6 mb-8 rounded-xl shadow-inner bg-v-bg-card border border-v-accent-low">
+                    <h2 className="text-2xl font-bold mb-4 text-v-accent-high">Workflow Configuration</h2>
                     <form onSubmit={handleFormSubmit} className="space-y-4">
+                        
+                        {/* Name and Filters */}
                         <input
                             type="text"
                             name="name"
@@ -192,16 +234,16 @@ function Workflows(){
                             value={formState.name}
                             onChange={handleFormChange}
                             required
-                            className="w-full p-3 border border-gray-300 rounded"
+                            className="w-full p-3 rounded-lg border border-v-accent-low bg-v-bg-secondary text-v-text-light focus:ring-v-accent-high focus:border-v-accent-high"
                         />
-                        <input
+                         <input
                             type="text"
                             name="trigger_subject"
                             placeholder="Email Subject Filter (e.g., Daily Sales)"
                             value={formState.trigger_subject}
                             onChange={handleFormChange}
                             required
-                            className="w-full p-3 border border-gray-300 rounded"
+                            className="w-full p-3 rounded-lg border border-v-accent-low bg-v-bg-secondary text-v-text-light focus:ring-v-accent-high focus:border-v-accent-high"
                         />
                         <input
                             type="email"
@@ -209,9 +251,37 @@ function Workflows(){
                             placeholder="Email Sender Filter (Optional)"
                             value={formState.trigger_sender}
                             onChange={handleFormChange}
-                            className="w-full p-3 border border-gray-300 rounded"
+                            className="w-full p-3 rounded-lg border border-v-accent-low bg-v-bg-secondary text-v-text-light focus:ring-v-accent-high focus:border-v-accent-high"
                         />
-                        <button type="submit" className="px-4 py-2 text-white bg-green-500 rounded-lg hover:bg-green-600">
+                        
+                        {/* Interval Input Box (Point 1.1) */}
+                        <div className="flex space-x-3 items-center pt-2">
+                            <label className="text-v-text-muted">Monitor Check Interval:</label>
+                            <input
+                                type="number"
+                                name="recheck_interval_value"
+                                min={1}
+                                max={formState.recheck_interval_unit === 'hr' ? 24 : 59}
+                                value={formState.recheck_interval_value}
+                                onChange={handleFormChange}
+                                required
+                                className="w-24 p-3 rounded-lg border border-v-accent-low bg-v-bg-secondary text-v-text-light text-center"
+                            />
+                            <select
+                                name="recheck_interval_unit"
+                                value={formState.recheck_interval_unit}
+                                onChange={handleFormChange}
+                                className="p-3 rounded-lg border border-v-accent-low bg-v-bg-secondary text-v-text-light"
+                            >
+                                <option value="min">Minutes</option>
+                                <option value="hr">Hours</option>
+                            </select>
+                        </div>
+
+                        <button 
+                            type="submit" 
+                            className="w-full py-3 rounded-lg bg-v-accent-mid hover:bg-v-accent-high text-v-bg-primary font-bold transition duration-200"
+                        >
                             Save Workflow
                         </button>
                     </form>
@@ -219,7 +289,7 @@ function Workflows(){
             )}
 
             <div className="space-y-4">
-                {error && <p className="text-red-500">{error}</p>}
+                {error && <p className="text-red-400">{error}</p>}
                 {workflows.map(wf => (
                     <WorkflowItem 
                         key={wf.id} 
@@ -229,43 +299,49 @@ function Workflows(){
                         onTrigger={handleTrigger}
                     />
                 ))}
-                {workflows.length === 0 && !error && <p className="text-gray-500 italic">No workflows created yet. Click 'Create New Workflow' to begin.</p>}
-            {/* NEW: View Data Button */}
-            <div className="mt-8 pt-4 border-t">
+                {workflows.length === 0 && !error && (
+                    <p className="text-v-text-muted italic mt-10">
+                        No workflows created yet. Start automating your supply chain!
+                    </p>
+                )}
+            </div>
+            
+            {/* NEW: View Data Button (Modified to call handleViewData with the first workflow ID for quick dump) */}
+            <div className="mt-10 pt-6 border-t border-v-accent-low/30">
                 <button
-                    onClick={handleViewData} 
-                    className="flex items-center px-4 py-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
+                    onClick={() => handleViewData(workflows[0]?.id)} /* Use the ID of the first workflow */
+                    disabled={workflows.length === 0}
+                    className="flex items-center px-6 py-3 rounded-lg bg-v-accent-low hover:bg-v-accent-high text-v-text-light font-bold transition duration-200 disabled:opacity-50"
                 >
                     <Database size={20} className="mr-2" />
-                    View All Raw Data Dump
+                    View Raw Data Dump (Latest Workflow)
                 </button>
             </div>
 
             {/* NEW: Raw Data Table Display */}
             {rawDump && (
-                <div className="mt-4 p-4 bg-white shadow-lg rounded-lg max-h-96 overflow-auto">
-                    <h2 className="text-xl font-semibold mb-3">Complete Data Dump</h2>
-                    <button onClick={() => setRawDump(null)} className="float-right text-sm text-red-500">
+                <div className="mt-8 p-6 rounded-xl shadow-2xl max-h-96 overflow-auto bg-v-bg-secondary">
+                    <h2 className="text-2xl font-semibold mb-4 text-v-accent-high">Complete Data Dump</h2>
+                    <button onClick={() => setRawDump(null)} className="float-right text-sm text-red-400 hover:text-v-text-light">
                         Close
                     </button>
                     {/* Simplified table display: Map the array of objects */}
-                    <table className="min-w-full divide-y divide-gray-200 text-xs">
-                        <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-v-accent-low/50 text-sm">
+                        <thead className="bg-v-bg-card">
                             <tr>
-                                {Object.keys(rawDump[0] || {}).map(key => <th key={key} className="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">{key}</th>)}
+                                {Object.keys(rawDump[0] || {}).map(key => <th key={key} className="px-3 py-2 text-left font-medium text-v-text-light uppercase tracking-wider">{key}</th>)}
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="divide-y divide-v-accent-low/20">
                             {rawDump.map((row, index) => (
                                 <tr key={index}>
-                                    {Object.values(row).map((value, idx) => <td key={idx} className="px-2 py-1 whitespace-nowrap">{String(value)}</td>)}
+                                    {Object.values(row).map((value, idx) => <td key={idx} className="px-3 py-2 whitespace-nowrap text-v-text-light">{String(value)}</td>)}
                                 </tr>
                             ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

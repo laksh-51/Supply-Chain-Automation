@@ -2,3 +2,13 @@
 echo "backend/token.json" >> .gitignore
 echo "backend/services/token.json" >> .gitignore
 echo "backend/credentials.json" >> .gitignore
+
+# Environment/Secrets
+.env
+backend/.env
+backend/credentials.json
+backend/token.json
+
+# Temporary/Local Files
+*.pyc
+attchment_1.xlsx    

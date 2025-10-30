@@ -1,34 +1,36 @@
-// frontend/src/main.jsx (MODIFIED)
-import { StrictMode, useState } from 'react' // ADDED useState
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'; // ADDED Navigate
+// frontend/src/main.jsx - FINAL VERSION (Includes Layout, Conditional Chatbot, and Typo Fix)
 
-// Import new layout components
+import { StrictMode, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+
+// Import necessary components/pages that define the application structure
 import Sidebar from './components/Sidebar.jsx'; 
 import Navbar from './components/Navbar.jsx';   
 
-// Import necessary pages
 import Login from './pages/Auth/Login.jsx';
 import Register from './pages/Auth/Register.jsx';
-import Dashboard from './pages/Dashboard/Home.jsx'; // Renaming Home to Dashboard
+import Dashboard from './pages/Dashboard/Home.jsx'; // Renamed Home to Dashboard
+import Workflows from './pages/Dashboard/Workflows.jsx'; 
+import History from './pages/Dashboard/History.jsx';     
 import InsightsDashboard from './pages/Dashboard/Insights/InsightsDashboard.jsx';
-// NEW PAGE IMPORTS
-import Workflows from './pages/Dashboard/Workflows.jsx'; // Will create this below
-import History from './pages/Dashboard/History.jsx';     // Will create this below
 import Chatbot from './components/Chatbot.jsx'; 
 import './index.css'
 
 // -----------------------------------------------------------
-// 1. App Component (MODIFIED to include layout and state)
+// 1. App Component (Container for Layout and Routing)
 // -----------------------------------------------------------
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
+  // Checks if a valid token exists for authentication
   const isAuthenticated = () => {
     return localStorage.getItem('accessToken'); 
   };
   
+  // Custom component wrapper for all protected routes (Replaces original Routes structure)
   const ProtectedLayout = ({ children }) => {
+    // FIX: Uses the correct 'isAuthenticated()' function
     if (!isAuthenticated()) {
         return <Navigate to="/" />;
     }
@@ -57,12 +59,12 @@ function App() {
     
   return (
     <BrowserRouter>
-      {/* Public Routes */}
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<Login />} /> 
         <Route path="/register" element={<Register />} />
         
-        {/* Protected Routes - Note: We wrap the page element in ProtectedLayout */}
+        {/* Protected Routes - All use ProtectedLayout */}
         <Route 
             path="/dashboard" 
             element={<ProtectedLayout><Dashboard /></ProtectedLayout>} 
@@ -80,23 +82,24 @@ function App() {
             element={<ProtectedLayout><History /></ProtectedLayout>} 
         />
         
-        {/* Fallback route: If authenticated, go to Dashboard. Otherwise, go to Login. */}
+        {/* Fallback route: Redirect to Login if unauthenticated, or Dashboard if authenticated */}
         <Route 
             path="*" 
             element={isAuthenticated() ? <Navigate to="/dashboard" /> : <Navigate to="/" />}
         />
       </Routes>
       
-      {/* Chatbot remains outside the router, for persistence */}
-      <Chatbot /> 
+      {/* Chatbot Control (Point 3.1) - Renders only when authenticated */}
+      {isAuthenticated() && <Chatbot />} 
     </BrowserRouter>
   );
 }
+
 // -----------------------------------------------------------
-// 2. THIS IS THE ORIGINAL CONTENT OF main.jsx (The Mount)
+// 2. The Mount
 // -----------------------------------------------------------
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App /> {/* The combined application component */}
+    <App /> 
   </StrictMode>,
 )

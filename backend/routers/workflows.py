@@ -7,6 +7,9 @@ from database import get_session
 from models.workflow import Workflow, WorkflowCreate, WorkflowRead, WorkflowUpdate
 from models.user_model import User
 from services.auth_utils import get_current_active_user
+from models.sales_data_model import get_sales_data_model # NEW IMPORT
+import main # <<< MODIFIED: Simple direct import of main.py
+
 router = APIRouter(prefix="/api/v1", tags=["workflows"])
 
 # --- Helper Dependency for Authorization ---
@@ -48,6 +51,13 @@ def create_workflow(
     session.add(db_workflow)
     session.commit()
     session.refresh(db_workflow)
+    # NEW: Create the physical table immediately upon workflow creation
+    SalesDataModel = get_sales_data_model(db_workflow.id)
+    SalesDataModel.metadata.create_all(session.get_bind())
+    
+    # Schedule the job immediately after creation
+    main.create_dynamic_job(db_workflow) 
+    
     return db_workflow
 
 @router.patch("/workflows/{workflow_id}", response_model=WorkflowRead)
@@ -66,6 +76,7 @@ def update_workflow(
     session.add(db_workflow)
     session.commit()
     session.refresh(db_workflow)
+    create_dynamic_job(db_workflow)
     return db_workflow
 
 @router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT)

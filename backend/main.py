@@ -8,6 +8,8 @@ from models.sales_data_model import SalesData # Need to import the SalesData mod
 from sqlmodel import SQLModel
 from datetime import datetime # ADDED: Need this for timestamp updatesfrom datetime import datetime # ADDED: Need this for timestamp updates
 from apscheduler.schedulers.asyncio import AsyncIOScheduler # <<< NEW IMPORT
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore # New import
+from apscheduler.jobstores.base import JobLookupError # NEW IMPORT
 import os
 from dotenv import load_dotenv
 
@@ -31,6 +33,7 @@ from models.workflow import Workflow # ADDED
 from routers import workflows # ADDED: Assuming an empty __init__.py exists in routers/
 # Imports needed for SQL translation metadata
 from models.sales_data_model import SalesData 
+from models.sales_data_model import get_sales_data_model # NEW IMPORT
 from sqlmodel import inspect
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -108,25 +111,31 @@ scheduler = AsyncIOScheduler()
 # ---------------------------
 
 # NEW FUNCTION: The core scheduled task
-def scheduled_workflow_check():
+def scheduled_workflow_check(workflow_id: int):
     """Checks all active workflows and triggers ETL if a new email is detected."""
     with next(get_session()) as session:
-        # 1. Select all active workflows
-        active_workflows = session.exec(select(Workflow).where(Workflow.is_active == True)).all()
+        # 1. Fetch workflow and dynamic model
+       workflow = session.get(Workflow, workflow_id) # <<< FIX: Uses passed ID
+    if not workflow or not workflow.is_active:
+            print(f"SCHEDULER: Job failed. Workflow ID {workflow_id} not found or inactive.")
+            return
+
+    SalesDataModel = get_sales_data_model(workflow_id) 
         
-        for workflow in active_workflows:
-            print(f"SCHEDULER: Checking workflow ID {workflow.id}: {workflow.name}")
-            
+        # CRITICAL: Ensure the table exists before use (Multitenancy safety)
+    SalesDataModel.metadata.create_all(session.get_bind())
+        
+    print(f"SCHEDULER: Checking workflow ID {workflow_id}: {workflow.name}")
             # --- Build Search Query ---
-            search_query = f"subject:{workflow.trigger_subject}"
-            if workflow.trigger_sender:
+    search_query = f"subject:{workflow.trigger_subject}"
+    if workflow.trigger_sender:
                 search_query += f" from:{workflow.trigger_sender}"
             
             # --- Find New Attachment ---
             # NOTE: We now expect 3 return values
-            raw_data, file_name, message_id = find_and_download_attachment(search_query=search_query)
+    raw_data, file_name, message_id = find_and_download_attachment(search_query=search_query)
 
-            if raw_data is None or message_id is None:
+    if raw_data is None or message_id is None:
                 # Log INFO if no new email found, but don't halt the scheduler
                 new_log = WorkflowLog(
                     merchant_id=workflow.user_id, 
@@ -136,24 +145,24 @@ def scheduled_workflow_check():
                 )
                 session.add(new_log)
                 session.commit() # Commit the INFO log immediately
-                continue # Skip to next workflow
+    return# Skip to next workflow  # noqa: F702
 
             # --- IDEMPOTENCY CHECK ---
-            if workflow.last_processed_email_id == message_id:
+    if workflow.last_processed_email_id == message_id:
                 print(f"SCHEDULER: Workflow {workflow.id} skipped. Email already processed.")
-                continue # Skip to next workflow
+    return # Skip to next workflow
             
             # --- ETL Logic (Same as manual trigger) ---
-            df = process_attachment_data(raw_data, file_name)
-            if df is None or df.empty:
+    df = process_attachment_data(raw_data, file_name)
+    if df is None or df.empty:
                  # Log FAILURE and continue
                  print(f"SCHEDULER: ERROR - Data processing failed for workflow {workflow.id}.")
-                 continue
+                 return
                  
-            rows_inserted = ingest_data_frame(df, session) 
+    rows_inserted = ingest_data_frame(df, session) 
             
             # --- Update Log and Workflow Status/ID ---
-            new_log = WorkflowLog(
+    new_log = WorkflowLog(
                 merchant_id=workflow.user_id, 
                 status="SUCCESS",
                 workflow_id=workflow.id,
@@ -161,26 +170,124 @@ def scheduled_workflow_check():
                 rows_inserted=rows_inserted,
                 message=f"Ingestion successful. Processed {df.shape[0]} rows."
             )
-            session.add(new_log)
+    session.add(new_log)
             
             # UPDATE WORKFLOW STATE
-            workflow.last_run_status = "AUTO-SUCCESS"
-            workflow.last_run_timestamp = datetime.utcnow()
-            workflow.last_processed_email_id = message_id # <<< CRUCIAL IDEMPOTENCY UPDATE
-            session.add(workflow)
-            session.commit()
-            print(f"SCHEDULER: Workflow {workflow.id} SUCCESS: {rows_inserted} rows inserted.")
+    workflow.last_run_status = "AUTO-SUCCESS"
+    workflow.last_run_timestamp = datetime.utcnow()
+    workflow.last_processed_email_id = message_id # <<< CRUCIAL IDEMPOTENCY UPDATE
+    session.add(workflow)
+    session.commit()
+    print(f"SCHEDULER: Workflow {workflow.id} SUCCESS: {rows_inserted} rows inserted.")
+
+# Job store setup using your PostgreSQL database
+jobstores = {
+    'default': SQLAlchemyJobStore(url=os.getenv("DATABASE_URL"))
+}
+scheduler = AsyncIOScheduler(jobstores=jobstores)
+
+# Core ETL logic (Now called by the scheduler for a SINGLE workflow)
+def run_etl_for_workflow(workflow_id: int):
+    """Core ETL logic for a single workflow instance."""
+    with next(get_session()) as session:
+        workflow = session.get(Workflow, workflow_id)
+        if not workflow or not workflow.is_active:
+            # Safely remove job if workflow is deleted/inactive
+            scheduler.remove_job(str(workflow_id))
+            return
+        
+        # ... logic to build search_query ...
+        # ... logic for find_and_download_attachment (returns 3 values) ...
+        # ... Idempotency Check (last_processed_email_id) ...
+        # ... ETL & Ingestion (PASSING user_id and workflow_id) ...
+        # ... Log success, Update workflow.last_processed_email_id, session.commit() ...
+
+# NEW HELPER: Job creation/update logic
+def create_dynamic_job(workflow: Workflow):
+    """Adds or updates a job for a single workflow based on its interval."""
+    # Job ID must be unique (use f"wf_{user_id}_{workflow_id}")
+    job_id = f"wf_{workflow.user_id}_{workflow.id}"
+    
+    # If interval is 0 or less, skip/remove job
+    if workflow.recheck_interval_minutes < 1:
+        try:
+            scheduler.remove_job(job_id)
+            print(f"SCHEDULER: Removed job {job_id}. Interval is invalid.")
+        except JobLookupError:
+            pass # Job didn't exist anyway
+        return
+
+    try:
+        # Try to remove any existing job with this ID first
+        scheduler.remove_job(job_id)
+    except JobLookupError:
+        pass
+        
+    # Add the new job
+    scheduler.add_job(
+        scheduled_workflow_check, # The existing function that checks one workflow's email
+        'interval', 
+        minutes=workflow.recheck_interval_minutes, 
+        id=job_id,
+        name=workflow.name,
+        # Pass the specific workflow ID as an argument
+        kwargs={'workflow_id': workflow.id}
+    )
+    print(f"SCHEDULER: Scheduled job {job_id} for every {workflow.recheck_interval_minutes} minutes.")
+    
+# NEW: Scheduler Management Function
+def manage_workflow_jobs():
+    """Runs periodically to synchronize database workflows with scheduler jobs."""
+    with next(get_session()) as session:
+        workflow = session.get(Workflow, workflow_id)
+        if not workflow or not workflow.is_active:
+            return
+        
+        for workflow in active_workflows:
+            job_id = str(workflow.id)
+            # Use the custom interval from the database
+            interval = workflow.recheck_interval_minutes 
+            
+            if job_id not in existing_job_ids:
+                # Add new job
+                scheduler.add_job(
+                    run_etl_for_workflow, 
+                    'interval', 
+                    minutes=interval, 
+                    id=job_id, 
+                    args=[workflow.id]
+                )
+            else:
+                # Update existing job if interval changed
+                job = scheduler.get_job(job_id)
+                # Check if the job's set interval differs from the database interval
+                if job and (job.trigger.interval.total_seconds() / 60) != interval:
+                    job.reschedule(trigger='interval', minutes=interval)
+
+        # Logic to remove jobs for deleted/inactive workflows (Crucial for cleanup)
+        for job in existing_jobs:
+            if job.id != 'workflow_manager_job':
+                if not session.get(Workflow, int(job.id)):
+                    scheduler.remove_job(job.id)
+                    
+def job_manager():
+    """Runs periodically to update/create jobs for all active workflows."""
+    with next(get_session()) as session:
+        active_workflows = session.exec(select(Workflow).where(Workflow.is_active == True)).all()
+        for workflow in active_workflows:
+            create_dynamic_job(workflow)                    
             
 @app.on_event("startup")
 def on_startup():
     """Creates database tables and starts the scheduler."""
     create_db_and_tables()
     
-    # Start scheduler here
-    scheduler.add_job(scheduled_workflow_check, 'interval', minutes=1) # Run every minute for testing
     scheduler.start()
-    print("SCHEDULER: Started, checking for workflows every 1 minute.")
-
+    
+    # Start the manager job that runs less frequently to check for new workflows
+    scheduler.add_job(job_manager, 'interval', minutes=5, id='workflow_manager', replace_existing=True)
+    print("SCHEDULER: Manager job started, running every 5 minutes to manage individual workflow jobs.")
+    
 @app.on_event("shutdown")
 def on_shutdown():
     """Stops the scheduler when the application shuts down."""
@@ -336,13 +443,17 @@ def chat_with_gemini(
         return {"response": "Chatbot Service Offline: Missing API Key."}
 
     # System instruction for tone and context
-    system_instruction = "You are a helpful, professional, and friendly AI assistant for a Supply Chain Automation platform. Keep answers concise."
+    system_instruction = (
+        "You are a helpful, friendly, and professional AI assistant for a Supply Chain Automation platform. "
+        "Your primary function is to answer questions strictly about *how to use the system, its features, and basic supply chain terminology*. "
+        "Do not answer general knowledge questions. Keep answers concise."
+    )    
     
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=[
-                {"role": "user", "parts": [{"text": system_instruction}]},
+                {"role": "system", "parts": [{"text": system_instruction}]}, # Pass system instruction first
                 {"role": "user", "parts": [{"text": data.message}]}
             ]
         )
@@ -387,8 +498,12 @@ def get_query_data(
     # 3. Execute Translated Query
     try:
         # Execute raw SQL, fetch all results
-        result = session.exec(raw_sql).all()
-
+        result = session.exec(select(SalesData).where(SalesData.merchant_id == current_user.id)).all()
+        
+        if not raw_sql.upper().startswith("SELECT"):
+            raise HTTPException(status_code=400, detail="Invalid query type.")
+        
+        result = session.exec(raw_sql).all() # This needs a workflow ID passed in the query
         # Since the result structure can vary, we convert to a list of dicts for JSON
         return {
             "status": "success",
@@ -398,15 +513,19 @@ def get_query_data(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database execution failed: {e}")
 
-@app.get("/api/v1/data/raw", response_model=List[SalesData])
+@app.get("/api/v1/data/raw/{workflow_id}", response_model=List[SalesData])
 def get_raw_sales_data(
+    workflow_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
-    """Retrieves all sales data currently in the database."""
-    # NOTE: This currently returns data for ALL users, based on SalesData model.
-    # For true multi-tenancy, you would add .where(SalesData.merchant_id == current_user.id)
-    data = session.exec(select(SalesData)).all()
+   # 1. Fetch model and create table if missing (optional safety check)
+    SalesDataModel = get_sales_data_model(workflow_id)
+    SalesDataModel.metadata.create_all(session.get_bind())
+
+    # 2. Query data using the dynamic model
+    data = session.exec(select(SalesDataModel)).all()
+    # Pydantic/FastAPI will automatically serialize the list of DynamicSalesData objects
     return data
 
     
