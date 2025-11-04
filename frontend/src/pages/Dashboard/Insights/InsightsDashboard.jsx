@@ -1,10 +1,10 @@
-// frontend/src/pages/Dashboard/Insights/InsightsDashboard.jsx (REVERTED TO EXTERNAL CSS CLASSES)
+// frontend/src/pages/Dashboard/Insights/InsightsDashboard.jsx (WITH EXPLICIT LABELS)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PlotlyChart from '../../../components/PlotlyChart.jsx';
 
 // Import local component CSS
-import '../../insights.css'; // <-- NEW IMPORT
+import '../../insights.css'; 
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -88,9 +88,10 @@ function InsightsDashboard() {
           }
       ];
       const layout = { 
+          xaxis: { title: 'Metric' }, // ADDED X-AXIS TITLE
           yaxis: { range: [0, 100], title: 'Percentage (%)' },
       };
-      return <PlotlyChart data={data_array} layout={layout} title="Delivery Performance (%)" />;
+      return <PlotlyChart data={data_array} layout={layout} title="Delivery Performance (OTIF/OT/IF Rates)" />; // UPDATED TITLE
   };
   
   if (loading) return <div className="loading-state">Loading supply chain insights...</div>;
@@ -117,6 +118,7 @@ function InsightsDashboard() {
           {renderDeliveryChart()}
         </div>
         
+        {/* Placeholder for Product Chart */}
         <div className="chart-card">
             <PlotlyChart
                 data={[{
@@ -126,10 +128,15 @@ function InsightsDashboard() {
                     mode: 'markers',
                     name: 'Quantity'
                 }]}
-                title="Top Products (By Quantity)"
+                layout={{
+                    xaxis: { title: 'Product ID' }, // ADDED X-AXIS TITLE
+                    yaxis: { title: 'Total Quantity Ordered' }, // ADDED Y-AXIS TITLE
+                }}
+                title="Top Products (By Quantity Sold)" // UPDATED TITLE
             />
         </div>
         
+        {/* Placeholder for Customer Chart */}
          <div className="chart-card">
             <PlotlyChart
                 data={[{
@@ -138,14 +145,18 @@ function InsightsDashboard() {
                     type: 'bar',
                     marker: { color: '#00BCD4' }
                 }]}
-                title="Top Ordering Customers"
+                layout={{
+                    xaxis: { title: 'Customer ID' }, // ADDED X-AXIS TITLE
+                    yaxis: { title: 'Total Orders Placed' }, // ADDED Y-AXIS TITLE
+                }}
+                title="Top Ordering Customers (By Order Count)" // UPDATED TITLE
             />
         </div>
       </div>
       
 {/* Natural Language Query Input Box */}
 <div className="query-box-section">
-    <h2>Data Science Query Box (Powered by Gemini)</h2>
+    <h2>Data Science Query Box</h2>
     <p>Ask a question about your data in simple terms (e.g., "Show me top 5 products by quantity").</p>
 
     <form onSubmit={handleQuerySubmit} className="query-form">
@@ -167,17 +178,40 @@ function InsightsDashboard() {
     </form>
 
     {/* Query Results Display */}
-    {queryError && <p className="query-error-message">Error: {queryError}</p>}
+    {queryError && <p className="query-error-message" style={{color: 'red', marginTop: '10px'}}>Error: {queryError}</p>}
 
     {queryResults && queryResults.results.length > 0 && (
         <div className="query-results-display">
             <h3>Results:</h3>
             <p className="query-text">Query: {queryResults.query}</p>
-            <pre>{JSON.stringify(queryResults.results, null, 2)}</pre>
+            
+            {/* START: TABULAR RESULTS RENDER */}
+            <table className="query-results-table">
+                <thead>
+                    <tr>
+                        {/* Get headers from the keys of the first result object */}
+                        {Object.keys(queryResults.results[0]).map((key) => (
+                            <th key={key}>{key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {queryResults.results.map((row, rowIndex) => (
+                        <tr key={rowIndex}>
+                            {/* Get cell values for each row */}
+                            {Object.values(row).map((value, colIndex) => (
+                                <td key={colIndex}>{String(value)}</td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {/* END: TABULAR RESULTS RENDER */}
+            
         </div>
     )}
     {queryResults && queryResults.results.length === 0 && (
-        <p className="no-query-results">No results found for your query.</p>
+        <p className="no-query-results" style={{marginTop: '10px'}}>No results found for your query.</p>
     )}
 </div>
     </div>

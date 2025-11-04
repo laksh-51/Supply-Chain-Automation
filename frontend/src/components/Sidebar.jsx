@@ -26,7 +26,7 @@ function Sidebar({ isOpen }) {
         <div className={sidebarClass}>
             {/* Header */}
             <div className="sidebar-header">
-                SC.Automation
+                SC-Automation
             </div>
             
             {/* Navigation Links */}
