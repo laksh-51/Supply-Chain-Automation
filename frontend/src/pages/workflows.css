@@ -1,0 +1,275 @@
+/* Styles for Workflows.jsx */
+
+.workflows-page {
+    padding: 32px;
+    min-height: 100vh;
+    color: var(--color-text-primary);
+}
+
+/* Header & Button */
+.workflows-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.workflows-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+}
+
+.create-workflow-button {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: var(--color-accent-strong);
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    transition: all 0.25s;
+    border: none;
+}
+
+.create-workflow-button:hover {
+    background-color: var(--color-accent-light);
+}
+
+.create-workflow-button svg {
+    margin-right: 8px;
+}
+
+/* Workflow Form */
+.workflow-form-container {
+    padding: 24px;
+    margin-bottom: 32px;
+    border-radius: 12px;
+    background-color: var(--color-card-bg);
+    border: 1px solid var(--color-accent-strong);
+}
+
+.workflow-form-container h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: var(--color-accent-light);
+}
+
+.workflow-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid var(--color-accent-strong);
+    background-color: var(--color-bg-mid);
+    color: var(--color-text-primary);
+}
+
+.interval-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding-top: 8px;
+}
+
+.interval-label {
+    color: var(--color-text-muted);
+}
+
+.interval-value-input {
+    width: 100px;
+    text-align: center;
+}
+
+.interval-unit-select {
+    width: 120px;
+    margin: 0 !important;
+}
+
+.save-workflow-button {
+    padding: 12px;
+    margin-top: 20px;
+    background-color: var(--color-accent-strong);
+}
+
+/* Workflow List & Item */
+.workflows-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.workflow-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    border-left: 4px solid var(--color-accent-light);
+    background-color: var(--color-card-bg);
+    transition: all 0.3s;
+}
+
+.workflow-item:hover {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+    background-color: var(--color-bg-mid);
+}
+
+.workflow-info {
+    flex: 1;
+}
+
+.workflow-name {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--color-text-primary);
+}
+
+.workflow-interval {
+    font-size: 0.875rem;
+    color: var(--color-accent-light);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.workflow-interval svg {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+}
+
+.workflow-last-run {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 8px;
+}
+
+.workflow-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.action-button {
+    padding: 10px;
+    background-color: var(--color-bg-mid);
+    color: var(--color-accent-light);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    transition: all 0.25s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+
+.action-button.trigger {
+    padding: 12px;
+    background-color: var(--color-accent-strong);
+    color: white;
+}
+
+.action-button.trigger:hover {
+    background-color: var(--color-accent-light);
+}
+
+.action-button.delete {
+    background-color: transparent;
+    color: var(--color-text-muted);
+    box-shadow: none;
+}
+
+.action-button.delete:hover {
+    color: red;
+}
+
+.no-workflows-message {
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin-top: 40px;
+}
+
+/* Raw Data Section */
+.raw-data-area {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--color-card-bg);
+}
+
+.raw-data-button {
+    display: flex;
+    align-items: center;
+    padding: 12px 24px;
+    background-color: var(--color-accent-strong);
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    transition: all 0.25s;
+    border: none;
+}
+
+.raw-data-button:hover {
+    background-color: var(--color-accent-light);
+}
+
+.raw-data-button svg {
+    margin-right: 8px;
+}
+
+.raw-data-dump {
+    margin-top: 30px;
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 600px;
+    overflow-y: auto;
+    background-color: var(--color-bg-mid);
+}
+
+.raw-data-dump h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 16px;
+    color: var(--color-accent-light);
+    float: left;
+}
+
+.raw-data-close-button {
+    float: right;
+    font-size: 0.875rem;
+    color: red;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.raw-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.raw-data-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    background-color: var(--color-card-bg);
+    border-bottom: 1px solid var(--color-bg-mid);
+}
+
+.raw-data-table td {
+    padding: 12px;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--color-bg-mid);
+}

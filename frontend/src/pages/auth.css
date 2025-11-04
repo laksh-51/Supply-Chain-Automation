@@ -1,0 +1,81 @@
+/* Styles for Login and Register Pages */
+
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+    padding: 40px;
+    border-radius: 16px;
+    background-color: var(--color-card-bg);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--color-accent-strong);
+    color: var(--color-text-primary);
+}
+
+.auth-title {
+    font-size: 2rem;
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: 800;
+}
+
+.auth-subtitle {
+    text-align: center;
+    color: var(--color-text-muted);
+    margin-bottom: 30px;
+    font-size: 1.2rem;
+}
+
+.auth-error {
+    color: red;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.auth-message {
+    color: var(--color-accent-light);
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--color-text-muted);
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid var(--color-accent-strong);
+    background-color: var(--color-bg-mid);
+    color: var(--color-text-primary);
+}
+
+.auth-button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 20px;
+    font-weight: bold;
+    font-size: 1em;
+    /* Uses the global button styling from index.css */
+}
+
+.auth-link-text {
+    margin-top: 25px;
+    text-align: center;
+    color: var(--color-text-muted);
+}

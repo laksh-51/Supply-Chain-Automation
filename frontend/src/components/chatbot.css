@@ -1,0 +1,117 @@
+/* Styles for Chatbot.jsx */
+
+.chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+.chat-toggle-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #00BCD4; 
+    color: white;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    padding: 0;
+}
+
+.chat-window {
+    width: 300px;
+    height: 400px;
+    background-color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border-radius: 8px;
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-header {
+    padding: 10px;
+    background-color: #00BCD4;
+    color: white;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    font-weight: 600;
+}
+
+.chat-messages-display {
+    flex-grow: 1;
+    padding: 10px;
+    overflow-y: auto;
+    border-bottom: 1px solid #ddd;
+    background-color: #f7f7f7;
+}
+
+.no-messages {
+    text-align: center;
+    color: #888;
+    font-size: 0.9em;
+    margin-top: 10px;
+}
+
+.message-bubble {
+    margin-bottom: 8px;
+}
+
+.message-bubble.user {
+    text-align: right;
+}
+
+.message-bubble.ai {
+    text-align: left;
+}
+
+.message-text {
+    display: inline-block;
+    padding: 8px;
+    border-radius: 12px;
+    max-width: 80%;
+    line-height: 1.4;
+}
+
+.message-bubble.user .message-text {
+    background-color: #DCF8C6; 
+    color: #333;
+}
+
+.message-bubble.ai .message-text {
+    background-color: #F1F0F0; 
+    color: #333;
+}
+
+.chat-input-form {
+    padding: 10px;
+    display: flex;
+    background-color: white;
+}
+
+.chat-input {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px 0 0 4px;
+    outline: none;
+}
+
+.chat-send-button {
+    padding: 8px 12px;
+    background-color: #00BCD4;
+    color: white;
+    border: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.chat-send-button:hover {
+    background-color: #0097A7;
+}

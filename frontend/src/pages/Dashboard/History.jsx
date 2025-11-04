@@ -1,20 +1,24 @@
-// frontend/src/pages/Dashboard/History.jsx (NEW FILE)
+// frontend/src/pages/Dashboard/History.jsx (REVERTED TO EXTERNAL CSS CLASSES)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Clock, CheckCircle, XCircle, Info, Calendar } from 'lucide-react';
 
+// Import local component CSS
+import '../history.css'; // <-- NEW IMPORT
+
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
-// Helper to map status to icon/color
+// Helper to map status to icon/color (Simplified status colors to static hex values)
 const getStatusIcon = (status) => {
     switch (status) {
         case 'SUCCESS':
-            return { icon: CheckCircle, color: 'text-green-500', bgColor: 'bg-green-100' };
+            return { icon: CheckCircle, colorClass: 'text-green-500', bgColorClass: 'bg-green-100' };
         case 'FAILURE':
-            return { icon: XCircle, color: 'text-red-500', bgColor: 'bg-red-100' };
+            return { icon: XCircle, colorClass: 'text-red-500', bgColorClass: 'bg-red-100' };
         case 'INFO':
         default:
-            return { icon: Info, color: 'text-blue-500', bgColor: 'bg-blue-100' };
+            // Assuming 'INFO' uses blue/default styling
+            return { icon: Info, colorClass: 'text-blue-500', bgColorClass: 'bg-blue-100' };
     }
 };
 
@@ -42,32 +46,32 @@ function History() {
         fetchHistory();
     }, []);
 
-    if (loading) return <div className="text-center text-indigo-500">Loading activity history...</div>;
+    if (loading) return <div className="loading-state">Loading activity history...</div>;
 
     return (
-        <div className="p-6">
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center mb-6">
-                <Calendar className="mr-3" />
+        <div className="history-container">
+            <h1 className="history-header">
+                <Calendar className="history-header-icon" />
                 Workflow History (Last 5 Activities)
             </h1>
             
-            <div className="space-y-4">
-                {error && <p className="text-red-500 italic">{error}</p>}
+            <div className="history-list">
+                {error && <p className="history-error">{error}</p>}
                 {history.length > 0 ? (
                     history.map((log) => {
-                        const { icon: Icon, color, bgColor } = getStatusIcon(log.status);
+                        const { icon: Icon, colorClass, bgColorClass } = getStatusIcon(log.status);
                         
                         return (
-                            <div key={log.id} className="p-4 bg-white rounded-lg shadow-lg flex items-start space-x-4 border-l-4 border-gray-200">
-                                <div className={`p-2 rounded-full ${bgColor}`}>
-                                    <Icon className={`w-6 h-6 ${color}`} />
+                            <div key={log.id} className="history-log-item">
+                                <div className={`history-icon-wrapper ${bgColorClass}`}>
+                                    <Icon className={colorClass} />
                                 </div>
                                 <div>
-                                    <p className="font-semibold text-gray-900">
-                                        Activity: <span className={color}>{log.status}</span> on Workflow ID: {log.workflow_id}
+                                    <p className="log-status-text">
+                                        Activity: <span className={`log-activity-span ${colorClass}`}>{log.status}</span> on Workflow ID: {log.workflow_id}
                                     </p>
-                                    <p className="text-sm text-gray-700 mt-1">{log.message}</p>
-                                    <p className="text-xs text-gray-500 mt-2">
+                                    <p className="log-message">{log.message}</p>
+                                    <p className="log-timestamp">
                                         Timestamp: {new Date(log.timestamp).toLocaleString()}
                                     </p>
                                 </div>
@@ -75,7 +79,7 @@ function History() {
                         );
                     })
                 ) : (
-                    <p className="text-gray-500 italic">No recent workflow activity recorded for your user.</p>
+                    <p className="no-activity-message">No recent workflow activity recorded for your user.</p>
                 )}
             </div>
         </div>

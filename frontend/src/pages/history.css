@@ -1,0 +1,93 @@
+/* Styles for History.jsx */
+
+.history-container {
+    padding: 24px;
+}
+
+.loading-state {
+    text-align: center;
+    color: var(--color-accent-strong);
+    margin-top: 20px;
+}
+
+.history-header {
+    font-size: 1.875rem;
+    font-weight: bold;
+    color: var(--color-text-primary); 
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.history-header svg {
+    margin-right: 0.75rem;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.history-error {
+    color: red;
+    font-style: italic;
+}
+
+.history-log-item {
+    padding: 16px;
+    background-color: var(--color-card-bg); 
+    color: var(--color-text-primary);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: flex-start;
+    gap: 16px; 
+    border-left: 4px solid var(--color-accent-light); 
+}
+
+.history-icon-wrapper {
+    padding: 8px; 
+    border-radius: 50%;
+}
+
+.history-icon-wrapper svg {
+    width: 24px; 
+    height: 24px;
+}
+
+/* Specific Status Colors (using the hex codes found in the JSX) */
+.text-green-500 { color: #4CAF50; }
+.bg-green-100 { background-color: #DCEAD9; }
+.text-red-500 { color: #D32F2F; }
+.bg-red-100 { background-color: #F8D9D9; }
+.text-blue-500 { color: #1976D2; }
+.bg-blue-100 { background-color: #D9EAF8; }
+
+.log-status-text {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.log-activity-span {
+    font-weight: bold;
+}
+
+.log-message {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+}
+
+.log-timestamp {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+    margin-top: 8px;
+}
+
+.no-activity-message {
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin-top: 20px;
+}
