@@ -1,30 +1,60 @@
-/* frontend/src/index.css (FINAL CLEAN) */
+/* frontend/src/index.css (NEW STANDARD CSS DESIGN - REPLACE ENTIRE FILE) */
 
-/* Define Global CSS Variables for links/text */
+/* 1. VIVID NIGHTFALL COLOR VARIABLES */
 :root {
-    --v-bg-primary: #0f172a;
-    --v-text-light: #e2e8f0;
-    --v-accent-high: #818cf8;
+  --color-bg-deep: #10002b; /* Deepest Background */
+  --color-bg-mid: #240046; /* Sidebar/Input BG */
+  --color-card-bg: #3c096c; /* Card Background */
+  --color-accent-strong: #7b2cbf; /* Primary Button/Active */
+  --color-accent-light: #c77dff; /* Highlight/Link Color */
+  --color-text-primary: #e0aaff; /* Main Text */
+  --color-text-muted: #9d4edd; /* Muted Text/Subtitles */
+
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-    html, body, #root {
-        @apply h-full;
-        color: var(--v-text-light); /* Ensures global text is readable */
-    }
+/* 2. Body Styling: Gradient Background */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  /* Subtle, deep gradient */
+  background: radial-gradient(at 0% 0%, var(--color-bg-deep), var(--color-bg-mid));
+  color: var(--color-text-primary);
 }
 
-/* Standard CSS Global Link Styling */
+/* 3. Button and Link Base Styling (Using Variables) */
+button {
+  border-radius: 8px;
+  border: 1px solid var(--color-accent-strong);
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: var(--color-accent-strong);
+  color: white;
+  cursor: pointer;
+  transition: all 0.25s;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+button:hover {
+  background-color: var(--color-accent-light);
+  border-color: var(--color-accent-light);
+  color: var(--color-bg-deep);
+  box-shadow: 0 6px 12px rgba(199, 125, 255, 0.4);
+}
+button:focus-visible {
+  outline: 4px auto var(--color-accent-strong);
+}
+
 a {
-    color: var(--v-accent-high);
-    text-decoration: none;
-    transition: color 0.2s;
+  font-weight: 500;
+  color: var(--color-accent-light);
+  text-decoration: none;
+  transition: color 0.2s;
 }
-
 a:hover {
-    color: var(--v-text-light);
+  color: var(--color-text-primary);
 }
