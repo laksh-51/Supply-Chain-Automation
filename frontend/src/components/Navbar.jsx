@@ -1,4 +1,4 @@
-// frontend/src/components/Navbar.jsx (MODIFIED with Tailwind)
+// frontend/src/components/Navbar.jsx (FINAL STABLE UI)
 import React from 'react';
 import { Menu } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
@@ -6,31 +6,62 @@ import { useLocation } from 'react-router-dom';
 const Navbar = ({ toggleSidebar }) => {
     const location = useLocation();
     
+    // Hide navbar on public routes
     if (location.pathname === '/' || location.pathname === '/register') {
         return null;
     }
 
-    // Empty initial as requested
+    // Fix: Empty initial for the avatar
     const userInitial = ''; 
 
+    const baseStyle = {
+        height: '64px', 
+        padding: '0 24px', 
+        backgroundColor: 'var(--color-bg-mid)', /* Dark accent color */
+        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+        borderBottom: '1px solid var(--color-card-bg)',
+        zIndex: 20,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+    };
+
+    const buttonStyle = {
+        padding: '8px',
+        borderRadius: '6px',
+        backgroundColor: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        transition: 'background-color 0.2s',
+    };
+
     return (
-        <header 
-            className="h-16 flex items-center justify-between px-6 shadow-md z-20 
-                       bg-v-bg-secondary border-b border-v-bg-card"
-        >
+        <header style={baseStyle}>
             {/* Left Corner: Sidebar Toggle Symbol (Hamburger) */}
             <button 
                 onClick={toggleSidebar} 
-                className="p-2 rounded-md hover:bg-v-bg-card transition-colors"
+                style={buttonStyle}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-card-bg)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                 title="Toggle Menu"
             >
-                <Menu className="w-6 h-6 text-v-accent-high" />
+                <Menu style={{ width: '24px', height: '24px', color: 'var(--color-accent-light)' }} />
             </button>
 
             {/* Right Corner: Account Initial in a Circle */}
-            <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center font-semibold shadow-md 
-                            bg-v-accent-high text-v-bg-secondary"> 
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ 
+                    width: '40px', 
+                    height: '40px', 
+                    borderRadius: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontWeight: '600',
+                    backgroundColor: 'var(--color-accent-light)', /* Bright circle */
+                    color: 'var(--color-bg-mid)', /* Dark text */
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.3)'
+                }}>
                     {userInitial}
                 </div>
             </div>
