@@ -138,21 +138,21 @@ def scheduled_workflow_check(workflow_id: int):
     raw_data, file_name, message_id = find_and_download_attachment(search_query=search_query)
 
     if raw_data is None or message_id is None:
-                # Log INFO if no new email found, but don't halt the scheduler
-                new_log = WorkflowLog(
-                    merchant_id=workflow.user_id, 
-                    status="INFO",
-                    workflow_id=workflow.id,
-                    message=f"No email found matching '{search_query}'. Skipping."
-                )
-                session.add(new_log)
-                session.commit() # Commit the INFO log immediately
-    return# Skip to next workflow  # noqa: F702
+        # Log INFO if no new email found, and RETURN
+        new_log = WorkflowLog(
+            merchant_id=workflow.user_id, 
+            status="INFO",
+            workflow_id=workflow.id,
+            message=f"No email found matching '{search_query}'. Skipping."
+        )
+        session.add(new_log)
+        session.commit()
+        return# Skip to next workflow  # noqa: F702
 
             # --- IDEMPOTENCY CHECK ---
     if workflow.last_processed_email_id == message_id:
-                print(f"SCHEDULER: Workflow {workflow.id} skipped. Email already processed.")
-    return # Skip to next workflow
+        print(f"SCHEDULER: Workflow {workflow.id} skipped. Email already processed.")
+        return # Skip to next workflow
             
             # --- ETL Logic (Same as manual trigger) ---
     df = process_attachment_data(raw_data, file_name)
@@ -325,8 +325,7 @@ async def trigger_data_ingestion(
         raise HTTPException(status_code=501, detail="Manual trigger disabled. Use scheduler or implement full idempotency logic here.")
 
     # 4. Ingestion (Load)
-    rows_inserted = ingest_data_frame(df, session) 
-
+    rows_inserted = ingest_data_frame(df, session, current_user.id) 
     # 5. Log Success to History and Update Workflow Status
     new_log = WorkflowLog(
         merchant_id=current_user.id, 

@@ -1,24 +1,28 @@
-import pandas as pd
-from sqlmodel import Session
-from database import engine 
-from services.ingestion import ingest_data_frame
-from services.data_processor import create_dummy_dataframe
+import os
+from database import get_session
+from sqlalchemy import text # Used for executing raw SQL
 
-
-# 1. Create Data
-df_test = create_dummy_dataframe()
-
-# 2. Start a Manual Session and Execute Ingestion
-with Session(engine) as session:
-    print("--- Attempting Ingestion ---")
+def clear_all_workflow_logs():
+    """Deletes all data from the workflowlog table."""
     try:
-        # Note: ingest_data_frame requires session as an argument
-        rows = ingest_data_frame(df_test, session) 
-        # Manual commit is crucial for shell testing
+        # Use next() to get a session object directly from the generator dependency
+        session = next(get_session())
+        
+        print("--- Deleting ALL entries from 'workflowlog' table... ---")
+        
+        # Execute raw SQL DELETE statement
+        session.exec(text("DELETE FROM workflowlog"))
+        
         session.commit()
-        print(f"SUCCESS: {rows} rows committed. Check DB now.")
+        print("--- SUCCESS: All workflow history logs have been cleared. ---")
+        
     except Exception as e:
-        # This will print the explicit SQLModel or DB error
-        print(f"FATAL INGESTION ERROR: {e}") 
-        session.rollback() 
-        print("TRANSACTION ROLLED BACK.")
+        print(f"FATAL CLEANUP ERROR: {e}")
+        if 'session' in locals():
+            session.rollback()
+    finally:
+        if 'session' in locals():
+            session.close()
+
+if __name__ == "__main__":
+    clear_all_workflow_logs()

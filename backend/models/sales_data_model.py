@@ -1,6 +1,6 @@
 # backend/models/sales_data_model.py
 from sqlmodel import Field, SQLModel
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, ClassVar 
 
 
@@ -15,6 +15,7 @@ class SalesDataMixin(SQLModel):
     delivery_date: date
     on_time: int # 1 if on time, 0 otherwise
     in_full: int # 1 if in full, 0 otherwise
+    insertion_timestamp: datetime = Field(default_factory=datetime.utcnow, nullable=False) # <-- NEW FIELD
 
 # 2. Define Base Table (for compatibility with existing code)
 class SalesData(SalesDataMixin, table=True):
