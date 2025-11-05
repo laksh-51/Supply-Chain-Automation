@@ -133,6 +133,13 @@
     color: var(--color-text-primary);
 }
 
+/* NEW STYLE for filter details */
+.workflow-filter-detail {
+    font-size: 0.875rem;
+    color: var(--color-text-muted); /* Using muted text for details */
+    margin-top: 4px;
+}
+
 .workflow-interval {
     font-size: 0.875rem;
     color: var(--color-accent-light);
@@ -272,4 +279,28 @@
     white-space: nowrap;
     font-size: 0.875rem;
     border-bottom: 1px solid var(--color-bg-mid);
+}
+
+.cancel-edit-button {
+    /* Base styling for a full-width, non-primary action button */
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    font-weight: bold; /* Keeping bold for prominence */
+    font-size: 1em;
+    
+    /* Red Color for Cancel/Danger Action */
+    background-color: transparent;
+    color: #D32F2F; /* Strong red text */
+    border: 1px solid transparent; /* Mimics a transparent border initially */
+    box-shadow: none;
+    cursor: pointer;
+    transition: all 0.25s;
+    border-radius: 8px; /* Match other buttons */
+}
+
+.cancel-edit-button:hover {
+    color: var(--color-text-primary); /* Light text on hover for contrast */
+    background-color: var(--color-card-bg); /* Use card background for hover */
+    border-color: #D32F2F; /* Highlight border with red on hover */
 }

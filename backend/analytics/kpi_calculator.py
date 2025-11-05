@@ -1,13 +1,14 @@
 # backend/analytics/kpi_calculator.py
 from sqlmodel import Session, select, func
-from models.sales_data_model import SalesData
-from typing import Dict, Any
+from typing import Dict, Any, Type
 
 
-def calculate_delivery_kpis(session: Session) -> Dict[str, Any]:
-    """Calculates On-Time, In-Full, and OTIF rates."""
+# NOTE: All functions now accept model_class: Type
+def calculate_delivery_kpis(session: Session, model_class: Type) -> Dict[str, Any]:
+    """Calculates On-Time, In-Full, and OTIF rates using a provided model class."""
     
-    total_orders = session.exec(select(func.count(SalesData.id))).one_or_none()
+    # Use model_class instead of hardcoded SalesData
+    total_orders = session.exec(select(func.count(model_class.id))).one_or_none()
     
     if not total_orders or total_orders == 0:
         return {
@@ -17,11 +18,11 @@ def calculate_delivery_kpis(session: Session) -> Dict[str, Any]:
             "total_orders": 0
         }
 
-    # Use aggregation to calculate success counts
-    on_time_count = session.exec(select(func.count(SalesData.id)).where(SalesData.on_time == 1)).one()
-    in_full_count = session.exec(select(func.count(SalesData.id)).where(SalesData.in_full == 1)).one()
-    otif_count = session.exec(select(func.count(SalesData.id)).where(
-        (SalesData.on_time == 1) & (SalesData.in_full == 1)
+    # Use aggregation to calculate success counts, referencing model_class
+    on_time_count = session.exec(select(func.count(model_class.id)).where(model_class.on_time == 1)).one()
+    in_full_count = session.exec(select(func.count(model_class.id)).where(model_class.in_full == 1)).one()
+    otif_count = session.exec(select(func.count(model_class.id)).where(
+        (model_class.on_time == 1) & (model_class.in_full == 1)
     )).one()
 
     # Calculate Rates
@@ -36,14 +37,15 @@ def calculate_delivery_kpis(session: Session) -> Dict[str, Any]:
         "total_orders": total_orders
     }
 
-def calculate_product_kpis(session: Session) -> Dict[str, Any]:
+# NOTE: All functions now accept model_class: Type
+def calculate_product_kpis(session: Session, model_class: Type) -> Dict[str, Any]:
     """Calculates top products and order quantities."""
     
     # Example: Top 3 Most Ordered Products
     stmt = select(
-        SalesData.product_id,
-        func.sum(SalesData.order_qty).label('total_qty')
-    ).group_by(SalesData.product_id).order_by(func.sum(SalesData.order_qty).desc()).limit(3)
+        model_class.product_id,
+        func.sum(model_class.order_qty).label('total_qty')
+    ).group_by(model_class.product_id).order_by(func.sum(model_class.order_qty).desc()).limit(3)
     
     top_products_result = session.exec(stmt).all()
     
@@ -57,14 +59,15 @@ def calculate_product_kpis(session: Session) -> Dict[str, Any]:
         "top_ordered_products": top_products
     }
 
-def calculate_customer_kpis(session: Session) -> Dict[str, Any]:
+# NOTE: All functions now accept model_class: Type
+def calculate_customer_kpis(session: Session, model_class: Type) -> Dict[str, Any]:
     """Calculates basic customer ordering patterns."""
 
     # Example: Customers with the most orders
     stmt = select(
-        SalesData.customer_id,
-        func.count(SalesData.order_id).label('order_count')
-    ).group_by(SalesData.customer_id).order_by(func.count(SalesData.order_id).desc()).limit(3)
+        model_class.customer_id,
+        func.count(model_class.order_id).label('order_count')
+    ).group_by(model_class.customer_id).order_by(func.count(model_class.order_id).desc()).limit(3)
     
     top_customers_result = session.exec(stmt).all()
     
@@ -77,12 +80,13 @@ def calculate_customer_kpis(session: Session) -> Dict[str, Any]:
         "top_ordering_customers": top_customers
     }
 
-def get_all_kpis(session: Session) -> Dict[str, Any]:
+# NOTE: The aggregator function now accepts model_class: Type
+def get_all_kpis(session: Session, model_class: Type) -> Dict[str, Any]:
     """Aggregates all KPI calculations into a single dictionary."""
     
     kpis = {}
-    kpis["delivery_performance"] = calculate_delivery_kpis(session)
-    kpis["product_performance"] = calculate_product_kpis(session)
-    kpis["customer_insights"] = calculate_customer_kpis(session)
+    kpis["delivery_performance"] = calculate_delivery_kpis(session, model_class)
+    kpis["product_performance"] = calculate_product_kpis(session, model_class)
+    kpis["customer_insights"] = calculate_customer_kpis(session, model_class)
     
     return kpis

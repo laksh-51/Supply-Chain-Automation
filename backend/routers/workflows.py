@@ -37,27 +37,23 @@ def read_workflows(
     ).all()
     return workflows
 
-@router.post("/workflows", response_model=WorkflowRead, status_code=status.HTTP_201_CREATED)
-def create_workflow(
-    workflow: WorkflowCreate,
-    current_user: User = Depends(get_current_active_user),
-    session: Session = Depends(get_session)
+@router.patch("/workflows/{workflow_id}", response_model=WorkflowRead)
+def update_workflow(
+    workflow_id: int,
+    workflow_update: WorkflowUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
 ):
-    """Create a new workflow for the current user."""
-    db_workflow = Workflow.model_validate(
-        workflow, 
-        update={"user_id": current_user.id}
-    )
+    """Update an existing workflow."""
+    db_workflow = get_user_workflow(workflow_id, current_user, session) 
+    
+    for key, value in workflow_update.model_dump(exclude_unset=True).items():
+        setattr(db_workflow, key, value)
+    
     session.add(db_workflow)
     session.commit()
     session.refresh(db_workflow)
-    # NEW: Create the physical table immediately upon workflow creation
-    SalesDataModel = get_sales_data_model(db_workflow.id)
-    SalesDataModel.metadata.create_all(session.get_bind())
-    
-    # Schedule the job immediately after creation
-    main.create_dynamic_job(db_workflow) 
-    
+    main.create_dynamic_job(db_workflow) # <-- FIX: Now using 'main.create_dynamic_job'
     return db_workflow
 
 @router.patch("/workflows/{workflow_id}", response_model=WorkflowRead)
@@ -76,7 +72,7 @@ def update_workflow(
     session.add(db_workflow)
     session.commit()
     session.refresh(db_workflow)
-    create_dynamic_job(db_workflow)
+    main.create_dynamic_job(db_workflow) 
     return db_workflow
 
 @router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT)

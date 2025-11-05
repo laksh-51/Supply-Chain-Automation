@@ -3,15 +3,16 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from passlib.context import CryptContext
-from typing import Annotated, List
+from typing import Annotated, List, Optional, Dict, Any
 from models.sales_data_model import SalesData # Need to import the SalesData model
 from sqlmodel import SQLModel
-from datetime import datetime 
+from datetime import datetime, date
 from apscheduler.schedulers.asyncio import AsyncIOScheduler 
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore 
 from apscheduler.jobstores.base import JobLookupError 
 import os
 from dotenv import load_dotenv
+import json # <-- CRITICAL: Must be imported
 # --- NEW IMPORT FOR RAW SQL EXECUTION ---
 from sqlalchemy import text 
 
@@ -39,6 +40,8 @@ from models.sales_data_model import get_sales_data_model # NEW IMPORT
 from sqlmodel import inspect
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder # <-- NEW IMPORT
 
 
 
@@ -161,7 +164,7 @@ def scheduled_workflow_check(workflow_id: int):
                  print(f"SCHEDULER: ERROR - Data processing failed for workflow {workflow.id}.")
                  return
                  
-    rows_inserted = ingest_data_frame(df, session) 
+    rows_inserted = ingest_data_frame(df, session, workflow.user_id, SalesDataModel) 
             
             # --- Update Log and Workflow Status/ID ---
     new_log = WorkflowLog(
@@ -244,7 +247,25 @@ def job_manager():
     with next(get_session()) as session:
         active_workflows = session.exec(select(Workflow).where(Workflow.is_active == True)).all()
         for workflow in active_workflows:
-            create_dynamic_job(workflow)                    
+            create_dynamic_job(workflow)               
+            
+def to_primitive_dict(sqlmodel_object: Any) -> Dict[str, Any]:
+    """Converts a SQLModel ORM object to a clean dictionary of primitives,
+    forcing date/datetime fields to ISO strings."""
+    
+    # Use model_dump to get the field names and values (handles inherited fields)
+    record_dict = sqlmodel_object.model_dump()
+    primitive_data = {}
+    
+    for key, value in record_dict.items():
+        if isinstance(value, (datetime, date)):
+            # Convert datetime/date to ISO format string
+            primitive_data[key] = value.isoformat()
+        else:
+            # Assign other primitive types directly
+            primitive_data[key] = value
+            
+    return primitive_data                 
             
 @app.on_event("startup")
 def on_startup():
@@ -324,8 +345,13 @@ async def trigger_data_ingestion(
         raise HTTPException(status_code=400, detail="Data processing failed or attachment was empty.")
         raise HTTPException(status_code=501, detail="Manual trigger disabled. Use scheduler or implement full idempotency logic here.")
 
+    # NEW: 3.1 Get the specific SalesData Model for this workflow ID
+    SalesDataModel = get_sales_data_model(workflow_id)
+    # Ensure table exists before we try to insert into it
+    SalesDataModel.metadata.create_all(session.get_bind())
+    
     # 4. Ingestion (Load)
-    rows_inserted = ingest_data_frame(df, session, current_user.id) 
+    rows_inserted = ingest_data_frame(df, session, current_user.id, SalesDataModel) 
     # 5. Log Success to History and Update Workflow Status
     new_log = WorkflowLog(
         merchant_id=current_user.id, 
@@ -370,26 +396,37 @@ def get_user_history(
 
 @app.get("/api/v1/insights")
 def get_insights(
+    # NEW: Optional query parameter for workflow_id
+    workflow_id: Optional[int] = None, 
     current_user: str = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
     """
-    Retrieves all calculated KPIs and runs anomaly detection.
+    Retrieves all calculated KPIs and runs anomaly detection, optionally scoped to a single workflow.
     """
-    # 1. Calculate all KPIs from the current database state
-    kpis = get_all_kpis(session)
+    # 1. Determine the correct data model to query from
+    if workflow_id is not None:
+        # Use the dynamic model for a specific workflow's table (e.g., sales_data_1)
+        SalesDataModel = get_sales_data_model(workflow_id)
+        # Optional: Ensure table exists, though it should be created on workflow creation
+        SalesDataModel.metadata.create_all(session.get_bind())
+    else:
+        # Use the default model (SalesData) for aggregated data across the merchant
+        SalesDataModel = SalesData
+        
+    # 2. Calculate all KPIs, passing the determined Model Class
+    kpis = get_all_kpis(session, SalesDataModel)
 
-    # 2. Run Anomaly Detection
+    # 3. Run Anomaly Detection and AI Summary
     anomaly_result = detect_anomalies(kpis)
-
     ai_summary = generate_insight_summary(anomaly_result)
-    # 3. Compile final response structure
-
+    
+    # 4. Compile final response structure
     return {
         "status": "success",
         "kpis": kpis,
         "anomaly": anomaly_result,
-        "ai_summary_text": ai_summary # <-- NEW FIELD
+        "ai_summary_text": ai_summary 
     }
 # --- Placeholder Root Route ---
 # backend/main.py (Add the new route below existing routes)
@@ -478,22 +515,57 @@ def get_query_data(
         # Convert exception object to string for display
         raise HTTPException(status_code=500, detail=f"Database execution failed: {e}")
 
-@app.get("/api/v1/data/raw/{workflow_id}", response_model=List[SalesData])
+# ----------------------------------------------------
+# ROUTE 1: All Workflows Raw Data Dump (/api/v1/data/raw/all) - MUST BE FIRST
+# ----------------------------------------------------
+@app.get("/api/v1/data/raw/all") 
+def get_all_raw_sales_data(
+    current_user: User = Depends(get_current_active_user),
+    session: Session = Depends(get_session)
+):
+    workflows = session.exec(
+        select(Workflow).where(Workflow.user_id == current_user.id)
+    ).all()
+    
+    all_data = []
+    
+    for workflow in workflows:
+        SalesDataModel = get_sales_data_model(workflow.id)
+        data = session.exec(select(SalesDataModel)).all()
+        
+        for record in data:
+            # 1. Convert the ORM object to a primitive dict using the helper
+            record_dict = to_primitive_dict(record)
+            
+            # 2. Add context fields
+            record_dict['workflow_id'] = workflow.id
+            record_dict['workflow_name'] = workflow.name
+            all_data.append(record_dict)
+            
+    # CRITICAL FIX: Return JSONResponse using the fully primitive list.
+    return JSONResponse(content=all_data)
+
+
+# ----------------------------------------------------
+# ROUTE 2: Single Workflow Data View (/api/v1/data/raw/{workflow_id}) - MUST BE SECOND
+# ----------------------------------------------------
+@app.get("/api/v1/data/raw/{workflow_id}") 
 def get_raw_sales_data(
     workflow_id: int,
     current_user: User = Depends(get_current_active_user),
     session: Session = Depends(get_session)
 ):
-   # 1. Fetch model and create table if missing (optional safety check)
     SalesDataModel = get_sales_data_model(workflow_id)
     SalesDataModel.metadata.create_all(session.get_bind())
 
-    # 2. Query data using the dynamic model
     data = session.exec(select(SalesDataModel)).all()
-    # Pydantic/FastAPI will automatically serialize the list of DynamicSalesData objects
-    return data
-
     
+    # Use manual conversion and JSONResponse
+    primitive_data_list = [to_primitive_dict(record) for record in data]
+    return JSONResponse(content=primitive_data_list)
+
+
+
 @app.get("/")
 def read_root():
     return {"message": "Supply Chain Automation Backend Running"}
